@@ -11,12 +11,10 @@ root = logging.getLogger()
 root.setLevel(logging.INFO)
 
 p = configargparse.ArgumentParser()
-p.add('--db', required=True, help='database url (e.g. postgres://postgres@localhost/db)',
-      env_var='DATABASE_URL')
+p.add('--folder', required=True, help='folder to backup',
+      env_var='FOLDER')
 p.add('--ftp', required=True, help='FTP url (e.g. ftp://backup:password@backup.network/backups/mydb)',
       env_var='FTP_URL')
-p.add('--pgdump', required=False, help='pg_dump path command',
-      env_var='PG_DUMP_COMMAND', default='pg_dump')
 p.add('--max', required=False, help='maximum count of backups',
       env_var='MAX_FILES', default=5)
 p.add('--name', required=False, help='backup name',
@@ -26,33 +24,23 @@ options = p.parse_args()
 s = Sultan()
 
 
-def backup_front_name(database):
-    db = dj_database_url.parse(database)
-    return db['HOST'] + '-' + db['NAME'] + '-' + options.name
+def backup_front_name():
+    return options.name
 
 
-def backup_name(database):
+def backup_name():
     now = datetime.now()
     now = now.replace(microsecond=0)
-    return backup_front_name(database) + '-' + now.isoformat() + ".psql"
+    return backup_front_name() + '-' + now.isoformat() + '.tar.gz'
 
 
-def backup(database, ftp, pgdump):
+def backup(folder, ftp, ):
     logging.info('Starting backup')
-    name = backup_name(database)
+    name = backup_name()
     path = '/tmp/' + name
-    logging.info('Backup database to {}'.format(path))
-    s.bash('-c', '"'+' '.join([pgdump, '-d', database]) + '"').redirect(
-        path,
-        append=False,
-        stdout=True,
-        stderr=False).run()
+    logging.info('Backup data to {}'.format(path))
 
-    s.tar('cf', path + '.tar.gz', path).run()
-
-    s.rm(path).run()
-
-    path = path + '.tar.gz'
+    s.tar('cf', path, folder).run()
 
     ftp = urlparse.urlparse(ftp, 'ftp')
     logging.info('Sending backup {} to {}'.format(path, ftp.hostname))
@@ -67,7 +55,7 @@ def backup(database, ftp, pgdump):
         host.makedirs(ftp.path)
         host.upload_if_newer(path, ftp.path + name + '.tar.gz')
         host.chdir(ftp.path)
-        files = [file for file in host.listdir(ftp.path) if file.startswith(backup_front_name(database))]
+        files = [file for file in host.listdir(ftp.path) if file.startswith(backup_front_name())]
         files.sort()
         while len(files) > options.max:
             old_file = files.pop(0)
@@ -79,4 +67,4 @@ def backup(database, ftp, pgdump):
 
 
 if __name__ == '__main__':
-    backup(options.db, options.ftp, options.pgdump)
+    backup(options.folder, options.ftp)
