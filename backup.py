@@ -16,7 +16,7 @@ p.add('--folder', required=True, help='folder to backup',
 p.add('--ftp', required=True, help='FTP url (e.g. ftp://backup:password@backup.network/backups/mydb)',
       env_var='FTP_URL')
 p.add('--max', required=False, help='maximum count of backups',
-      env_var='MAX_FILES', default=5)
+      env_var='MAX_FILES', type=int, default=5)
 p.add('--name', required=False, help='backup name',
       env_var='BACKUP_NAME', default='manual_backup')
 options = p.parse_args()
